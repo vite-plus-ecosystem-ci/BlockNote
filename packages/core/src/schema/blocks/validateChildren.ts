@@ -1,9 +1,4 @@
-import {
-  getChildrenConfig,
-  isContainerType,
-  isPlaceableAnywhere,
-  resolveChildren,
-} from "./children.js";
+import { resolveChildren } from "./children.js";
 import type { ResolvedChildren } from "./children.js";
 import type { BlockConfig, ChildrenConfig } from "./types.js";
 
@@ -23,15 +18,16 @@ export function validateChildrenConfigs(
   blockConfigs: Record<string, ValidatableConfig>,
 ) {
   const isContainerBlockType = (blockType: string) =>
-    !!blockConfigs[blockType] && isContainerType(blockConfigs[blockType]);
+    !!blockConfigs[blockType] && blockConfigs[blockType].children !== undefined;
   const acceptCtx = {
     isContainerBlockType,
     isPlaceableAnywhereType: (blockType: string) =>
-      !!blockConfigs[blockType] && isPlaceableAnywhere(blockConfigs[blockType]),
+      !!blockConfigs[blockType] &&
+      blockConfigs[blockType].placement !== "containerOnly",
   };
 
   for (const [type, config] of Object.entries(blockConfigs)) {
-    const children = getChildrenConfig(config);
+    const children = config.children;
 
     if (!children) {
       // `placement: "anywhere"` is the documented default for every block, so
@@ -282,7 +278,7 @@ export function validateContainerRunsBefore(
   runsBefore: Record<string, readonly string[] | undefined>,
 ) {
   for (const [type, config] of Object.entries(blockConfigs)) {
-    if (!isContainerType(config)) {
+    if (config.children === undefined) {
       continue;
     }
 
@@ -293,7 +289,7 @@ export function validateContainerRunsBefore(
       if (other === "default" || !(other in blockConfigs)) {
         continue;
       }
-      if (!isContainerType(blockConfigs[other])) {
+      if (blockConfigs[other].children === undefined) {
         throw new Error(
           `Invalid \`runsBefore\` for container block "${type}": it names "${other}", which is a regular block, not a container block. ` +
             "Container block nodes always register below regular ones, so a container can never be ordered before a regular block. " +
@@ -319,7 +315,7 @@ function validateContainerOnlyIsReachable(
 ) {
   const accepted = new Set<string>();
   for (const config of Object.values(blockConfigs)) {
-    const children = getChildrenConfig(config);
+    const children = config.children;
     if (!children) {
       continue;
     }
@@ -333,7 +329,7 @@ function validateContainerOnlyIsReachable(
   }
 
   for (const [type, config] of Object.entries(blockConfigs)) {
-    if (!isPlaceableAnywhere(config) && !accepted.has(type)) {
+    if (config.placement === "containerOnly" && !accepted.has(type)) {
       fail(
         type,
         `it declares \`placement: "containerOnly"\`, but no container's \`children.allow\` array includes it, so it could never be inserted.`,
@@ -355,7 +351,7 @@ function validateNoCycles(
   // A container that allows regular blocks can always be filled with a plain
   // paragraph, so it never forces recursion. Only container-only lists do.
   const requiredContainers = (type: string): string[] => {
-    const children = getChildrenConfig(blockConfigs[type]);
+    const children = blockConfigs[type].children;
     if (!children) {
       return [];
     }

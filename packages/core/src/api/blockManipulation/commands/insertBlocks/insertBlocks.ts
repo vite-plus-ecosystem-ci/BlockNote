@@ -9,6 +9,7 @@ import {
   StyleSchema,
 } from "../../../../schema/index.js";
 import { isContainerNode } from "../../../../schema/blocks/children.js";
+import { getBlockInfoFromNode } from "../../../getBlockInfoFromPos.js";
 import { blockToNode } from "../../../nodeConversions/blockToNode.js";
 import { nodeToBlock } from "../../../nodeConversions/nodeToBlock.js";
 import { getNodeById } from "../../../nodeUtil.js";
@@ -51,10 +52,10 @@ export function getInsertionPos(
 ): { pos: number; wrapIn?: NodeType } | null {
   const { node, posBeforeNode } = reference;
 
-  const descend = (holder: Node, pos: number) =>
+  const descend = (holder: { node: Node; beforePos: number }) =>
     placement === "start"
-      ? descendToFirstInsertionPos(holder, pos, nodeType)
-      : descendToLastInsertionPos(holder, pos, nodeType);
+      ? descendToFirstInsertionPos(holder, nodeType)
+      : descendToLastInsertionPos(holder, nodeType).pos;
 
   if (placement === "before" || placement === "after") {
     const pos =
@@ -66,33 +67,31 @@ export function getInsertionPos(
       : null;
   }
 
-  // A container holds its children itself. The descent helpers ignore sealed
-  // boundaries by default, which is correct here: an explicit `insertBlocks`
-  // placement is an intentional crossing.
-  if (isContainerNode(node.type)) {
-    const pos = descend(node, posBeforeNode);
+  // Neither a container nor a `blockContainer` (possible only for exotic
+  // hand-written specs): nothing can nest inside it.
+  if (!isContainerNode(node.type) && node.type.name !== "blockContainer") {
+    return null;
+  }
+
+  const info = getBlockInfoFromNode(node, posBeforeNode);
+
+  if (info.children) {
+    // The descent helpers report sealed boundaries but this caller ignores
+    // them: an explicit `insertBlocks` placement is an intentional crossing.
+    const pos = descend(info.children);
 
     return pos === null ? null : { pos };
   }
 
-  // A regular block keeps its children in a `blockGroup` that only exists once
-  // it has some.
+  // No children holder implies a `blockContainer` with no children yet
+  // (containers always have one): its `blockGroup` is lazy (`blockContent
+  // blockGroup?`), so the position after the content node only becomes valid
+  // once the nodes are wrapped in a new group.
   const blockGroupType = nodeType.schema.nodes["blockGroup"];
-  if (node.type.name !== "blockContainer" || !blockGroupType) {
-    return null;
-  }
 
-  const blockGroupPos = posBeforeNode + 1 + node.firstChild!.nodeSize;
-
-  if (node.childCount < 2) {
-    return blockGroupType.contentMatch.matchType(nodeType)
-      ? { pos: blockGroupPos, wrapIn: blockGroupType }
-      : null;
-  }
-
-  const pos = descend(node.lastChild!, blockGroupPos);
-
-  return pos === null ? null : { pos };
+  return info.hasContent && blockGroupType?.contentMatch.matchType(nodeType)
+    ? { pos: info.content.afterPos, wrapIn: blockGroupType }
+    : null;
 }
 
 export function insertBlocks<

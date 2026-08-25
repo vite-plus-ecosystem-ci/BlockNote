@@ -27,7 +27,7 @@ import {
 // `fixContainer.js` re-export) because `fixContainer.js` imports the seeding
 // machinery below; going through it would create an import cycle.
 import {
-  getChildrenConfig,
+  createBlockGroup,
   isContainerNode,
   resolveChildren,
 } from "../../schema/blocks/children.js";
@@ -357,7 +357,7 @@ const EMPTY_SEEDING: ReadonlySet<string> = new Set();
 
 function unwrapsWhenEmptied(blockType: string, schema: Schema): boolean {
   const blockConfig = getBlockSchema(schema)[blockType];
-  const children = blockConfig ? getChildrenConfig(blockConfig) : undefined;
+  const children = blockConfig?.children;
   return !!children && resolveChildren(children).whenEmptied === "unwrap";
 }
 
@@ -394,9 +394,7 @@ function seedDefaultChildren(
   seedingTypes: ReadonlySet<string>,
 ): Node[] | undefined {
   const blockSchemaConfig = getBlockSchema(schema)[blockType];
-  const childrenConfig = blockSchemaConfig
-    ? getChildrenConfig(blockSchemaConfig)
-    : undefined;
+  const childrenConfig = blockSchemaConfig?.children;
 
   if (!childrenConfig) {
     return undefined;
@@ -439,7 +437,7 @@ export function seedRefillChildren(
   min: number,
 ): Node[] {
   const blockConfig = getBlockSchema(schema)[blockType];
-  const children = blockConfig ? getChildrenConfig(blockConfig) : undefined;
+  const children = blockConfig?.children;
   const defaultChildren = children
     ? resolveChildren(children).default
     : undefined;
@@ -545,9 +543,7 @@ export function blockToNode(
     );
 
     const groupNode =
-      children.length > 0
-        ? schema.nodes["blockGroup"].createChecked({}, children)
-        : undefined;
+      children.length > 0 ? createBlockGroup(schema, children) : undefined;
 
     return schema.nodes["blockContainer"].createChecked(
       {

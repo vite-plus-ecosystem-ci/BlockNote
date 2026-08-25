@@ -2,9 +2,8 @@ import { Fragment, type Schema } from "prosemirror-model";
 
 import {
   ANY_CONTAINER_GROUP,
-  getChildrenConfig,
+  CHILD_CONTAINER_GROUP,
   isContainerNode,
-  isPlaceableAnywhere,
 } from "./children.js";
 
 /**
@@ -17,6 +16,7 @@ import {
  */
 export function assertContainerSchemaInvariants(pmSchema: Schema) {
   assertBlockGroupFillsWithBlockContainer(pmSchema);
+  assertChildContainersAreBlocks(pmSchema);
   assertContainersAreFillable(pmSchema);
   assertAnyContainerGroupMatchesConfigs(pmSchema);
 }
@@ -46,6 +46,29 @@ function assertBlockGroupFillsWithBlockContainer(pmSchema: Schema) {
 }
 
 /**
+ * `isContainerNode` classifies a child-holding node as a container by its
+ * `bnBlock` membership: every `childContainer` node is either a container
+ * block (in `bnBlock`) or `blockGroup` (regular blocks' nesting machinery).
+ * Generated nodes always get this right; a hand-written `childContainer`
+ * node without `bnBlock` would silently be treated like `blockGroup`
+ * everywhere, so the mismatch is reported here instead.
+ */
+function assertChildContainersAreBlocks(pmSchema: Schema) {
+  for (const type of Object.values(pmSchema.nodes)) {
+    if (
+      type.isInGroup(CHILD_CONTAINER_GROUP) &&
+      !type.isInGroup("bnBlock") &&
+      type.name !== "blockGroup"
+    ) {
+      throw new Error(
+        `BlockNote schema invariant broken: node "${type.name}" is in the "${CHILD_CONTAINER_GROUP}" group but not in "bnBlock". ` +
+          `Only \`blockGroup\` may hold children without being a block; a hand-written container node must include the "bnBlock" group itself.`,
+      );
+    }
+  }
+}
+
+/**
  * The `anyContainer` group must contain exactly the container blocks
  * placeable anywhere. It is what the `allow` container wildcards (`"any"`,
  * `"containers"`) compile to. Generated nodes always get this right; a
@@ -60,8 +83,8 @@ function assertAnyContainerGroupMatchesConfigs(pmSchema: Schema) {
     }
 
     const shouldBeInGroup =
-      getChildrenConfig(blockConfig) !== undefined &&
-      isPlaceableAnywhere(blockConfig);
+      blockConfig.children !== undefined &&
+      blockConfig.placement !== "containerOnly";
     if (shouldBeInGroup !== type.isInGroup(ANY_CONTAINER_GROUP)) {
       throw new Error(
         shouldBeInGroup

@@ -94,17 +94,22 @@ export function removeAndInsertBlocks<
       }
     }
 
+    // When the block is the only child of a nested `blockGroup`, delete the
+    // group with it (`blockGroup` acting as a `min: 1, whenEmptied: "unwrap"`
+    // container). This can't route through `fixContainer`: repair runs after
+    // the delete, and by then ProseMirror's replace-fitting has padded the
+    // `blockGroupChild+` group with a fresh empty `blockContainer`
+    // indistinguishable from an intentional one. Only here, before the
+    // delete, is "this was the group's last child" still knowable.
+    const parent = $pos.node();
     if (
-      $pos.node().type.name === "blockGroup" &&
+      parent.type.name === "blockGroup" &&
       $pos.node($pos.depth - 1).type.name !== "doc" &&
-      $pos.node().childCount === 1
+      parent.childCount === 1
     ) {
-      // Checks if the block is the only child of a parent `blockGroup` node.
-      // In this case, we need to delete the parent `blockGroup` node instead
-      // of just the `blockContainer`.
       tr.delete($pos.before(), $pos.after());
     } else {
-      tr.delete(pos - removedSize, pos - removedSize + node.nodeSize);
+      tr.delete($pos.pos, $pos.pos + node.nodeSize);
     }
 
     const newDocSize = tr.doc.nodeSize;

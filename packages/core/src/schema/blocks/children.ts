@@ -1,7 +1,6 @@
-import type { Node, NodeType } from "prosemirror-model";
+import type { Node, NodeType, Schema } from "prosemirror-model";
 
 import type {
-  BlockConfig,
   ChildrenAllow,
   ChildrenConfig,
   PartialBlockNoDefaults,
@@ -31,10 +30,82 @@ export const BLOCK_GROUP_CHILD_GROUP = "blockGroupChild";
 export const ANY_CONTAINER_GROUP = "anyContainer";
 
 // Whether `type` is a node that holds child blocks directly: a container
-// block's own node. (`blockGroup` is in the group too but is regular-block
-// nesting machinery, not a container.)
+// block's own node. A container is a child-holding node that is itself a
+// block; `blockGroup` also holds children but is not a block (it's regular
+// blocks' nesting machinery), so the `bnBlock` check excludes it.
+// `assertChildContainersAreBlocks` guarantees these two groups classify every
+// child-holding node.
 export function isContainerNode(type: NodeType): boolean {
-  return type.isInGroup(CHILD_CONTAINER_GROUP) && type.name !== "blockGroup";
+  return type.isInGroup(CHILD_CONTAINER_GROUP) && type.isInGroup("bnBlock");
+}
+
+/**
+ * The regions a block node resolves into, answered once for every shape so no
+ * other code asks "which shape am I":
+ *
+ * - a container block: its own node holds the children (`childrenHolder.node
+ *   === outer`, offset 0), no content region;
+ * - a `blockContainer`: a content head at offset 1, and a `blockGroup`
+ *   children holder only once it has children.
+ *
+ * `offset` measures from just before `outer` to just before the region's
+ * node, so with `beforePos` pointing at `outer`, a region's node starts at
+ * `beforePos + offset` and its inside begins at `beforePos + offset + 1` —
+ * uniformly across shapes.
+ */
+export type BlockRegions = {
+  outer: Node;
+  content?: { node: Node; offset: number };
+  childrenHolder?: { node: Node; offset: number };
+};
+
+export function getBlockRegions(node: Node): BlockRegions {
+  if (isContainerNode(node.type)) {
+    return { outer: node, childrenHolder: { node, offset: 0 } };
+  }
+
+  if (node.type.name === "blockContainer") {
+    const content = node.firstChild;
+    if (!content) {
+      throw new Error(
+        "blockContainer node has no content node. This is a bug in BlockNote.",
+      );
+    }
+    const lastChild = node.lastChild;
+    const holder =
+      lastChild !== content &&
+      lastChild &&
+      lastChild.type.isInGroup(CHILD_CONTAINER_GROUP)
+        ? { node: lastChild, offset: 1 + content.nodeSize }
+        : undefined;
+
+    return {
+      outer: node,
+      content: { node: content, offset: 1 },
+      ...(holder ? { childrenHolder: holder } : {}),
+    };
+  }
+
+  throw new Error(
+    `Node "${node.type.name}" is not a block node (container or blockContainer).`,
+  );
+}
+
+// The one place a `blockGroup` node gets created around child blocks.
+export function createBlockGroup(
+  schema: Schema,
+  children: readonly Node[],
+): Node {
+  return schema.nodes["blockGroup"].createChecked({}, children as Node[]);
+}
+
+// Whether a node of `type` can sit where regular blocks go: as a direct child
+// of a `blockGroup` or of an `allow: "any"` container. `blockContainer` and
+// every anywhere-placeable container qualify; `containerOnly` containers
+// don't, and must be dissolved into their children before landing in such a
+// slot (see `flattenNonInsertableBlocks`).
+export function isBlockGroupInsertable(type: NodeType): boolean {
+  return type.isInGroup(BLOCK_GROUP_CHILD_GROUP);
 }
 
 // Below `blockContainer`'s priority (50) so PM's `fillBefore` picks
@@ -57,24 +128,6 @@ export function containerNodePriority(priority: number | undefined): number {
     CONTAINER_PRIORITY_BAND.max,
     Math.max(CONTAINER_PRIORITY_BAND.min, CONTAINER_NODE_PRIORITY + steps),
   );
-}
-
-export function getChildrenConfig(config: {
-  children?: ChildrenConfig;
-}): ChildrenConfig | undefined {
-  return config.children;
-}
-
-export function isContainerType(config: {
-  children?: ChildrenConfig;
-}): boolean {
-  return config.children !== undefined;
-}
-
-export function isPlaceableAnywhere(config: {
-  placement?: BlockConfig["placement"];
-}): boolean {
-  return config.placement !== "containerOnly";
 }
 
 const resolvedCache = new WeakMap<ChildrenConfig, ResolvedChildren>();
@@ -119,7 +172,7 @@ function resolveAllow(
  * Reads the block config off the node's spec.
  */
 export function isSealed(node: Node): boolean {
-  const children = getChildrenConfig(node.type.spec.blockConfig ?? {});
+  const children = node.type.spec.blockConfig?.children;
   return (
     children !== undefined && resolveChildren(children).boundary === "sealed"
   );

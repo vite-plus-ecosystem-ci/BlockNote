@@ -6,9 +6,8 @@
  * can use it. Not part of the public API: anything here may change in any
  * release, without a major version bump or a deprecation.
  *
- * The public counterparts stay on the root entrypoint: `isContainerType`,
- * `isContainerNode`, and the `children` config types (`ChildrenConfig`,
- * `ChildrenAllow`).
+ * The public counterparts stay on the root entrypoint: `isContainerNode` and
+ * the `children` config types (`ChildrenConfig`, `ChildrenAllow`).
  */
 
 // How a `children` config compiles to a ProseMirror content expression, and
@@ -20,8 +19,6 @@ export {
   CONTAINER_NODE_PRIORITY,
   childrenContentExpression,
   containerNodePriority,
-  getChildrenConfig,
-  isPlaceableAnywhere,
   resolveChildren,
 } from "./schema/blocks/children.js";
 

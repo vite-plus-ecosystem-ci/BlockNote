@@ -1,128 +1,19 @@
-import { Node } from "prosemirror-model";
 import { EditorState } from "prosemirror-state";
 
-import { isSealed } from "../../../../schema/blocks/children.js";
 import {
   BlockInfo,
-  getBlockInfoFromResolvedPos,
+  getBlockInfoAt,
+  getLastDescendantBlockInfo,
+  getPrevBlockInfo,
 } from "../../../getBlockInfoFromPos.js";
-
-/**
- * Returns the block info from the parent block
- * or undefined if we're at the root
- */
-export const getParentBlockInfo = (
-  doc: Node,
-  beforePos: number,
-): BlockInfo | undefined => {
-  const $pos = doc.resolve(beforePos);
-  const depth = $pos.depth - 1;
-
-  if (depth < 1) {
-    return undefined;
-  }
-
-  const parentBeforePos = $pos.before(depth);
-  const parentNode = doc.resolve(parentBeforePos).nodeAfter;
-
-  if (!parentNode) {
-    return undefined;
-  }
-
-  if (!parentNode.type.spec.group?.includes("bnBlock")) {
-    return getParentBlockInfo(doc, parentBeforePos);
-  }
-
-  const parentBlockInfo = getBlockInfoFromResolvedPos(
-    doc.resolve(parentBeforePos),
-  );
-
-  return parentBlockInfo;
-};
-
-/**
- * Returns the block info from the sibling block before (above) the given block,
- * or undefined if the given block is the first sibling.
- */
-export const getPrevBlockInfo = (doc: Node, beforePos: number) => {
-  const $pos = doc.resolve(beforePos);
-
-  const indexInParent = $pos.index();
-
-  if (indexInParent === 0) {
-    return undefined;
-  }
-
-  const prevBlockBeforePos = $pos.posAtIndex(indexInParent - 1);
-
-  const prevBlockInfo = getBlockInfoFromResolvedPos(
-    doc.resolve(prevBlockBeforePos),
-  );
-  return prevBlockInfo;
-};
-
-/**
- * Returns the block info from the sibling block after (below) the given block,
- * or undefined if the given block is the last sibling.
- */
-export const getNextBlockInfo = (doc: Node, beforePos: number) => {
-  const $pos = doc.resolve(beforePos);
-
-  const indexInParent = $pos.index();
-
-  if (indexInParent === $pos.node().childCount - 1) {
-    return undefined;
-  }
-
-  const nextBlockBeforePos = $pos.posAtIndex(indexInParent + 1);
-
-  const nextBlockInfo = getBlockInfoFromResolvedPos(
-    doc.resolve(nextBlockBeforePos),
-  );
-  return nextBlockInfo;
-};
-
-/**
- * If a block has children like this:
- * A
- * - B
- * - C
- * -- D
- *
- * Then the bottom nested block returned is D.
- */
-export const getBottomNestedBlockInfo = (
-  doc: Node,
-  blockInfo: BlockInfo,
-  // Callers that move content stop the descent at a sealed container, getting
-  // the container itself rather than a block inside it. Caret-only callers
-  // descend through. Sealed boundaries govern content, not navigation.
-  opts?: { stopAtSealed?: boolean },
-) => {
-  // A container that allows zero children can have an empty child container,
-  // in which case the block itself is the bottom one.
-  while (blockInfo.childContainer && blockInfo.childContainer.node.childCount) {
-    if (opts?.stopAtSealed && isSealed(blockInfo.childContainer.node)) {
-      break;
-    }
-    const group = blockInfo.childContainer.node;
-
-    const newPos = doc
-      .resolve(blockInfo.childContainer.beforePos + 1)
-      .posAtIndex(group.childCount - 1);
-    blockInfo = getBlockInfoFromResolvedPos(doc.resolve(newPos));
-  }
-
-  return blockInfo;
-};
 
 const canMerge = (prevBlockInfo: BlockInfo, nextBlockInfo: BlockInfo) => {
   return (
-    prevBlockInfo.isWrappedBlock &&
-    prevBlockInfo.blockContent.node.type.spec.content === "inline*" &&
-    prevBlockInfo.blockContent.node.childCount > 0 &&
-    nextBlockInfo.isWrappedBlock &&
-    nextBlockInfo.blockContent.node.type.spec.content === "inline*"
+    prevBlockInfo.hasContent &&
+    prevBlockInfo.contentKind === "inline" &&
+    !prevBlockInfo.isContentEmpty &&
+    nextBlockInfo.hasContent &&
+    nextBlockInfo.contentKind === "inline"
   );
 };
 
@@ -133,25 +24,25 @@ const mergeBlocks = (
   nextBlockInfo: BlockInfo,
 ) => {
   // Un-nests all children of the next block.
-  if (!nextBlockInfo.isWrappedBlock) {
+  if (!nextBlockInfo.hasContent) {
     throw new Error(
-      `Attempted to merge block at position ${nextBlockInfo.bnBlock.beforePos} into previous block at position ${prevBlockInfo.bnBlock.beforePos}, but next block is not a block container`,
+      `Attempted to merge block at position ${nextBlockInfo.block.beforePos} into previous block at position ${prevBlockInfo.block.beforePos}, but next block is not a block container`,
     );
   }
 
   // Removes a level of nesting all children of the next block by 1 level, if it contains both content and block
   // group nodes.
-  if (nextBlockInfo.childContainer) {
+  if (nextBlockInfo.children) {
     const childBlocksStart = state.doc.resolve(
-      nextBlockInfo.childContainer.beforePos + 1,
+      nextBlockInfo.children.childrenStart,
     );
     const childBlocksEnd = state.doc.resolve(
-      nextBlockInfo.childContainer.afterPos - 1,
+      nextBlockInfo.children.childrenEnd,
     );
     const childBlocksRange = childBlocksStart.blockRange(childBlocksEnd);
 
     if (dispatch) {
-      const pos = state.doc.resolve(nextBlockInfo.bnBlock.beforePos);
+      const pos = state.doc.resolve(nextBlockInfo.block.beforePos);
       state.tr.lift(childBlocksRange!, pos.depth);
     }
   }
@@ -160,9 +51,9 @@ const mergeBlocks = (
   // removing the closing tags of the first block and the opening tags of the
   // second one to stitch them together.
   if (dispatch) {
-    if (!prevBlockInfo.isWrappedBlock) {
+    if (!prevBlockInfo.hasContent) {
       throw new Error(
-        `Attempted to merge block at position ${nextBlockInfo.bnBlock.beforePos} into previous block at position ${prevBlockInfo.bnBlock.beforePos}, but previous block is not a block container`,
+        `Attempted to merge block at position ${nextBlockInfo.block.beforePos} into previous block at position ${prevBlockInfo.block.beforePos}, but previous block is not a block container`,
       );
     }
 
@@ -172,10 +63,7 @@ const mergeBlocks = (
     // `KeyboardShortcutsExtension` handle those cases by moving blocks
     // across the boundary instead of merging their content.
     dispatch(
-      state.tr.delete(
-        prevBlockInfo.blockContent.afterPos - 1,
-        nextBlockInfo.blockContent.beforePos + 1,
-      ),
+      state.tr.delete(prevBlockInfo.contentEnd, nextBlockInfo.contentStart),
     );
   }
 
@@ -191,19 +79,18 @@ export const mergeBlocksCommand =
     state: EditorState;
     dispatch: ((args?: any) => any) | undefined;
   }) => {
-    const $pos = state.doc.resolve(posBetweenBlocks);
-    const nextBlockInfo = getBlockInfoFromResolvedPos($pos);
+    const nextBlockInfo = getBlockInfoAt(state.doc, posBetweenBlocks);
 
     const prevBlockInfo = getPrevBlockInfo(
       state.doc,
-      nextBlockInfo.bnBlock.beforePos,
+      nextBlockInfo.block.beforePos,
     );
 
     if (!prevBlockInfo) {
       return false;
     }
 
-    const bottomNestedBlockInfo = getBottomNestedBlockInfo(
+    const bottomNestedBlockInfo = getLastDescendantBlockInfo(
       state.doc,
       prevBlockInfo,
     );

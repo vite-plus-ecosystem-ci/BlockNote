@@ -1,4 +1,3 @@
-import type { Node } from "prosemirror-model";
 import {
   NodeSelection,
   TextSelection,
@@ -13,9 +12,10 @@ import type {
 } from "../../../schema/index.js";
 import { UnreachableCaseError } from "../../../util/typescript.js";
 import {
-  getBlockInfo,
+  getBlockInfoFromNode,
   getBlockInfoFromSelection,
   getNodeId,
+  getParentBlockInfo,
 } from "../../getBlockInfoFromPos.js";
 import { nodeToBlock } from "../../nodeConversions/nodeToBlock.js";
 import { getNodeById } from "../../nodeUtil.js";
@@ -26,28 +26,20 @@ export function getTextCursorPosition<
   I extends InlineContentSchema,
   S extends StyleSchema,
 >(tr: Transaction): TextCursorPosition<BSchema, I, S> {
-  const { bnBlock } = getBlockInfoFromSelection(tr);
+  const { block } = getBlockInfoFromSelection(tr);
 
-  const resolvedPos = tr.doc.resolve(bnBlock.beforePos);
+  const resolvedPos = tr.doc.resolve(block.beforePos);
   // Gets previous blockContainer node at the same nesting level, if the current node isn't the first child.
   const prevNode = resolvedPos.nodeBefore;
 
   // Gets next blockContainer node at the same nesting level, if the current node isn't the last child.
-  const nextNode = tr.doc.resolve(bnBlock.afterPos).nodeAfter;
+  const nextNode = tr.doc.resolve(block.afterPos).nodeAfter;
 
-  // Gets parent blockContainer node, if the current node is nested.
-  let parentNode: Node | undefined = undefined;
-  if (resolvedPos.depth > 1) {
-    // for nodes nested in bnBlocks
-    parentNode = resolvedPos.node();
-    if (!parentNode.type.isInGroup("bnBlock")) {
-      // for blockGroups, we need to go one level up
-      parentNode = resolvedPos.node(resolvedPos.depth - 1);
-    }
-  }
+  // Gets the parent block's node, if the current block is nested.
+  const parentNode = getParentBlockInfo(tr.doc, block.beforePos)?.block.node;
 
   return {
-    block: nodeToBlock(bnBlock.node, tr.doc),
+    block: nodeToBlock(block.node, tr.doc),
     prevBlock: prevNode === null ? undefined : nodeToBlock(prevNode, tr.doc),
     nextBlock: nextNode === null ? undefined : nodeToBlock(nextNode, tr.doc),
     parentBlock:
@@ -69,54 +61,45 @@ export function setTextCursorPosition(
     throw new Error(`Block with ID ${id} not found`);
   }
 
-  const info = getBlockInfo(posInfo);
+  const info = getBlockInfoFromNode(posInfo.node, posInfo.posBeforeNode);
 
   const contentType: "none" | "inline" | "table" | "plain" =
     schema.blockSchema[info.blockNoteType]!.content;
 
-  if (info.isWrappedBlock) {
-    const blockContent = info.blockContent;
+  if (info.hasContent) {
+    const content = info.content;
     if (contentType === "none") {
-      tr.setSelection(NodeSelection.create(tr.doc, blockContent.beforePos));
+      tr.setSelection(NodeSelection.create(tr.doc, content.beforePos));
       return;
     }
 
     if (contentType === "inline" || contentType === "plain") {
       if (placement === "start") {
-        tr.setSelection(
-          TextSelection.create(tr.doc, blockContent.beforePos + 1),
-        );
+        tr.setSelection(TextSelection.create(tr.doc, info.contentStart));
       } else {
-        tr.setSelection(
-          TextSelection.create(tr.doc, blockContent.afterPos - 1),
-        );
+        tr.setSelection(TextSelection.create(tr.doc, info.contentEnd));
       }
     } else if (contentType === "table") {
-      if (placement === "start") {
-        // Need to offset the position as we have to get through the `tableRow`
-        // and `tableCell` nodes to get to the `tableParagraph` node we want to
-        // set the selection in.
-        tr.setSelection(
-          TextSelection.create(tr.doc, blockContent.beforePos + 4),
-        );
-      } else {
-        tr.setSelection(
-          TextSelection.create(tr.doc, blockContent.afterPos - 4),
-        );
-      }
+      // 4 levels in from the table's edge: table > row > cell > paragraph.
+      tr.setSelection(
+        TextSelection.create(
+          tr.doc,
+          placement === "start" ? content.beforePos + 4 : content.afterPos - 4,
+        ),
+      );
     } else {
       throw new UnreachableCaseError(contentType);
     }
   } else {
     const child =
       placement === "start"
-        ? info.childContainer.node.firstChild
-        : info.childContainer.node.lastChild;
+        ? info.children.node.firstChild
+        : info.children.node.lastChild;
 
     if (!child) {
       // A container allowed to hold no children has no text to put a cursor
       // in, so the container itself is selected instead.
-      tr.setSelection(NodeSelection.create(tr.doc, info.bnBlock.beforePos));
+      tr.setSelection(NodeSelection.create(tr.doc, info.block.beforePos));
       return;
     }
 

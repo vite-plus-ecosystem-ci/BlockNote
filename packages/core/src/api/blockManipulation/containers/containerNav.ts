@@ -11,45 +11,60 @@ import { isContainerNode, isSealed } from "../../../schema/blocks/children.js";
  */
 type SealOpts = { respectSealed?: boolean };
 
+/**
+ * Walks the trailing edge of `holder` (a children holder: `BlockInfo`'s
+ * `children`, or a container's own `block` entry — anything with a node and
+ * the position before it), descending through nested containers, to the
+ * deepest position where `nodeType` fits.
+ *
+ * The walk ignores seals but reports them: `crossedSeal` is true when a
+ * sealed container sat on the path, `holder` itself included. Callers decide
+ * the policy — the block manipulation API uses `pos` as-is (an explicit
+ * placement is an intentional crossing); gesture code treats
+ * `pos !== null && crossedSeal` as "blocked by a seal" (select the sealed
+ * container instead of entering it). One walk answers both questions because
+ * the descent follows a single path (each container's last child), so the
+ * seal-blind and seal-respecting positions are the same — the modes differ
+ * only in whether a seal sat on the way.
+ */
 export function descendToLastInsertionPos(
-  container: Node,
-  containerBeforePos: number,
+  holder: { node: Node; beforePos: number },
   nodeType: NodeType,
-  opts?: SealOpts,
-): number | null {
-  if (opts?.respectSealed && isSealed(container)) {
-    return null;
+): { pos: number | null; crossedSeal: boolean } {
+  const { node, beforePos } = holder;
+  const sealed = isSealed(node);
+  const endPos = beforePos + 1 + node.content.size;
+  if (node.contentMatchAt(node.childCount).matchType(nodeType)) {
+    return { pos: endPos, crossedSeal: sealed };
   }
-  const endPos = containerBeforePos + 1 + container.content.size;
-  if (container.contentMatchAt(container.childCount).matchType(nodeType)) {
-    return endPos;
-  }
-  const lastChild = container.lastChild;
+  const lastChild = node.lastChild;
   if (lastChild && isContainerNode(lastChild.type)) {
-    return descendToLastInsertionPos(
-      lastChild,
-      endPos - lastChild.nodeSize,
+    const inner = descendToLastInsertionPos(
+      { node: lastChild, beforePos: endPos - lastChild.nodeSize },
       nodeType,
-      opts,
     );
+    return { pos: inner.pos, crossedSeal: sealed || inner.crossedSeal };
   }
-  return null;
+  return { pos: null, crossedSeal: sealed };
 }
 
-// No seal handling: its only callers are API code, which crosses seals by
-// construction.
+// The leading-edge counterpart. No seal reporting: its only callers are API
+// code, which crosses seals by construction.
 export function descendToFirstInsertionPos(
-  container: Node,
-  containerBeforePos: number,
+  holder: { node: Node; beforePos: number },
   nodeType: NodeType,
 ): number | null {
-  const startPos = containerBeforePos + 1;
-  if (container.contentMatchAt(0).matchType(nodeType)) {
+  const { node, beforePos } = holder;
+  const startPos = beforePos + 1;
+  if (node.contentMatchAt(0).matchType(nodeType)) {
     return startPos;
   }
-  const firstChild = container.firstChild;
+  const firstChild = node.firstChild;
   if (firstChild && isContainerNode(firstChild.type)) {
-    return descendToFirstInsertionPos(firstChild, startPos, nodeType);
+    return descendToFirstInsertionPos(
+      { node: firstChild, beforePos: startPos },
+      nodeType,
+    );
   }
   return null;
 }
