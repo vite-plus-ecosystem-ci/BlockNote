@@ -1,6 +1,6 @@
 import { getMarkRange } from "@tiptap/core";
 import { insertContentAt } from "../../api/blockManipulation/insertContentAt.js";
-import { inlineContentToNodes } from "../../api/nodeConversions/blockToNode.js";
+import { inlineContentToNodes } from "../../api/nodeConversions/contentToNodes.js";
 import {
   BlockSchema,
   InlineContentSchema,

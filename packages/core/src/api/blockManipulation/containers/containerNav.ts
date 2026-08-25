@@ -1,6 +1,10 @@
 import type { Node, NodeType } from "prosemirror-model";
 
 import { isContainerNode, isSealed } from "../../../schema/blocks/children.js";
+import {
+  type BlockInfo,
+  getBlockInfoFromNode,
+} from "../../getBlockInfoFromPos.js";
 
 /**
  * Seal handling for the navigation helpers below. By default the helpers
@@ -12,82 +16,102 @@ import { isContainerNode, isSealed } from "../../../schema/blocks/children.js";
 type SealOpts = { respectSealed?: boolean };
 
 /**
- * Walks the trailing edge of `holder` (a children holder: `BlockInfo`'s
- * `children`, or a container's own `block` entry — anything with a node and
- * the position before it), descending through nested containers, to the
- * deepest position where `nodeType` fits.
- *
- * The walk ignores seals but reports them: `crossedSeal` is true when a
- * sealed container sat on the path, `holder` itself included. Callers decide
- * the policy — the block manipulation API uses `pos` as-is (an explicit
- * placement is an intentional crossing); gesture code treats
- * `pos !== null && crossedSeal` as "blocked by a seal" (select the sealed
- * container instead of entering it). One walk answers both questions because
- * the descent follows a single path (each container's last child), so the
- * seal-blind and seal-respecting positions are the same — the modes differ
- * only in whether a seal sat on the way.
+ * Walks the trailing edge of a block's children, descending through nested
+ * containers, to the deepest position where `nodeType` fits. Returns `null`
+ * when the block has no children holder, when nothing on the trailing edge
+ * accepts the type, or (with `respectSealed`) when a sealed container sits on
+ * the path.
  */
 export function descendToLastInsertionPos(
-  holder: { node: Node; beforePos: number },
+  info: BlockInfo,
   nodeType: NodeType,
-): { pos: number | null; crossedSeal: boolean } {
-  const { node, beforePos } = holder;
-  const sealed = isSealed(node);
-  const endPos = beforePos + 1 + node.content.size;
-  if (node.contentMatchAt(node.childCount).matchType(nodeType)) {
-    return { pos: endPos, crossedSeal: sealed };
-  }
-  const lastChild = node.lastChild;
-  if (lastChild && isContainerNode(lastChild.type)) {
-    const inner = descendToLastInsertionPos(
-      { node: lastChild, beforePos: endPos - lastChild.nodeSize },
-      nodeType,
-    );
-    return { pos: inner.pos, crossedSeal: sealed || inner.crossedSeal };
-  }
-  return { pos: null, crossedSeal: sealed };
-}
-
-// The leading-edge counterpart. No seal reporting: its only callers are API
-// code, which crosses seals by construction.
-export function descendToFirstInsertionPos(
-  holder: { node: Node; beforePos: number },
-  nodeType: NodeType,
+  opts?: SealOpts,
 ): number | null {
-  const { node, beforePos } = holder;
-  const startPos = beforePos + 1;
-  if (node.contentMatchAt(0).matchType(nodeType)) {
-    return startPos;
+  const children = info.children;
+  if (!children) {
+    return null;
   }
-  const firstChild = node.firstChild;
-  if (firstChild && isContainerNode(firstChild.type)) {
-    return descendToFirstInsertionPos(
-      { node: firstChild, beforePos: startPos },
+  if (opts?.respectSealed && isSealed(children.node)) {
+    return null;
+  }
+  if (
+    children.node.contentMatchAt(children.node.childCount).matchType(nodeType)
+  ) {
+    return children.childrenEnd;
+  }
+  const lastChild = children.node.lastChild;
+  if (lastChild && isContainerNode(lastChild.type)) {
+    return descendToLastInsertionPos(
+      getBlockInfoFromNode(
+        lastChild,
+        children.childrenEnd - lastChild.nodeSize,
+      ),
       nodeType,
+      opts,
     );
   }
   return null;
 }
 
-export function getFirstLeafBlock(
-  container: Node,
-  containerBeforePos: number,
+/**
+ * The leading-edge counterpart of `descendToLastInsertionPos`: the shallowest
+ * position on the block's leading edge where `nodeType` fits as a first
+ * child, descending through nested containers.
+ */
+export function descendToFirstInsertionPos(
+  info: BlockInfo,
+  nodeType: NodeType,
   opts?: SealOpts,
-): { node: Node; beforePos: number } | null {
-  // With `respectSealed`, a sealed container's leaf blocks are not reachable
-  // from outside.
-  if (opts?.respectSealed && isSealed(container)) {
+): number | null {
+  const children = info.children;
+  if (!children) {
     return null;
   }
-  const firstChild = container.firstChild;
+  if (opts?.respectSealed && isSealed(children.node)) {
+    return null;
+  }
+  if (children.node.contentMatchAt(0).matchType(nodeType)) {
+    return children.childrenStart;
+  }
+  const firstChild = children.node.firstChild;
+  if (firstChild && isContainerNode(firstChild.type)) {
+    return descendToFirstInsertionPos(
+      getBlockInfoFromNode(firstChild, children.childrenStart),
+      nodeType,
+      opts,
+    );
+  }
+  return null;
+}
+
+/**
+ * Resolves a block to its first leaf block: the block itself when it is not a
+ * container, otherwise the first leaf of its first child. Returns `null` for
+ * an empty container, or (with `respectSealed`) when reaching the leaf would
+ * cross a sealed container's boundary.
+ */
+export function getFirstLeafBlock(
+  info: BlockInfo,
+  opts?: SealOpts,
+): BlockInfo | null {
+  const children = info.children;
+  if (!children || !isContainerNode(info.block.node.type)) {
+    // Not a container: the block is its own first leaf.
+    return info;
+  }
+  // With `respectSealed`, a sealed container's leaf blocks are not reachable
+  // from outside.
+  if (opts?.respectSealed && isSealed(info.block.node)) {
+    return null;
+  }
+  const firstChild = children.node.firstChild;
   if (!firstChild) {
     return null;
   }
-  const firstChildBeforePos = containerBeforePos + 1;
-  if (isContainerNode(firstChild.type)) {
-    return getFirstLeafBlock(firstChild, firstChildBeforePos, opts);
-  }
-  return { node: firstChild, beforePos: firstChildBeforePos };
+  return getFirstLeafBlock(
+    getBlockInfoFromNode(firstChild, children.childrenStart),
+    opts,
+  );
 }
 
 /**
@@ -95,6 +119,10 @@ export function getFirstLeafBlock(
  * `side` picks which edge of each climbed container to land on: `"before"` for
  * moves that put a block above the containers it leaves (Backspace move-out),
  * `"after"` for moves that put it below them (Enter-exit).
+ *
+ * Position-based rather than `BlockInfo`-based (unlike the descend/leaf
+ * helpers above) because its input is an arbitrary gap position — a point
+ * between blocks, not a block.
  */
 export function ascendToInsertablePos(
   doc: Node,
@@ -122,6 +150,13 @@ export function ascendToInsertablePos(
   }
 }
 
+/**
+ * The container ancestors of a position, outermost last, each with its block
+ * id and resolution depth. Used to re-run container repair (`fixContainersById`)
+ * on every container a mutation may have emptied. Position-based for the same
+ * reason as `ascendToInsertablePos`: selections and mapped positions are the
+ * natural inputs.
+ */
 export function getAncestorContainers(
   doc: Node,
   pos: number,

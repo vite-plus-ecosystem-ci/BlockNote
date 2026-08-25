@@ -8,7 +8,6 @@ import {
   InlineContentSchema,
   StyleSchema,
 } from "../../../../schema/index.js";
-import { isContainerNode } from "../../../../schema/blocks/children.js";
 import { getBlockInfoFromNode } from "../../../getBlockInfoFromPos.js";
 import { blockToNode } from "../../../nodeConversions/blockToNode.js";
 import { nodeToBlock } from "../../../nodeConversions/nodeToBlock.js";
@@ -20,15 +19,14 @@ import {
 } from "../../containers/containerNav.js";
 
 /**
- * Where blocks go relative to a reference block. `"before"`/`"after"` make them
- * siblings of it; `"start"`/`"end"` nest them inside it, as its first or last
- * children.
+ * Where blocks go relative to a reference block. `"before"`/`"after"` make
+ * them siblings of it; `"first-child"`/`"last-child"` nest them inside it.
  *
  * The nested placements cover containers that have no children to point at:
  * a `min: 0` container that is currently empty has no child block to insert
  * before or after.
  */
-export type BlockPlacement = "before" | "after" | "start" | "end";
+export type BlockPlacement = "before" | "after" | "first-child" | "last-child";
 
 /**
  * Resolves a `placement` against a reference block into the document position
@@ -52,11 +50,6 @@ export function getInsertionPos(
 ): { pos: number; wrapIn?: NodeType } | null {
   const { node, posBeforeNode } = reference;
 
-  const descend = (holder: { node: Node; beforePos: number }) =>
-    placement === "start"
-      ? descendToFirstInsertionPos(holder, nodeType)
-      : descendToLastInsertionPos(holder, nodeType).pos;
-
   if (placement === "before" || placement === "after") {
     const pos =
       placement === "before" ? posBeforeNode : posBeforeNode + node.nodeSize;
@@ -67,18 +60,16 @@ export function getInsertionPos(
       : null;
   }
 
-  // Neither a container nor a `blockContainer` (possible only for exotic
-  // hand-written specs): nothing can nest inside it.
-  if (!isContainerNode(node.type) && node.type.name !== "blockContainer") {
-    return null;
-  }
-
   const info = getBlockInfoFromNode(node, posBeforeNode);
 
   if (info.children) {
-    // The descent helpers report sealed boundaries but this caller ignores
-    // them: an explicit `insertBlocks` placement is an intentional crossing.
-    const pos = descend(info.children);
+    // The descent helpers can stop at sealed boundaries but this caller lets
+    // them cross: an explicit `insertBlocks` placement is an intentional
+    // crossing.
+    const pos =
+      placement === "first-child"
+        ? descendToFirstInsertionPos(info, nodeType)
+        : descendToLastInsertionPos(info, nodeType);
 
     return pos === null ? null : { pos };
   }
@@ -133,7 +124,7 @@ export function insertBlocks<
       `Cannot insert a block of type "${blocksToInsert[0].type ?? "paragraph"}" ` +
         (placement === "before" || placement === "after"
           ? `${placement} block with ID ${id}: its parent does not accept it.`
-          : `at the ${placement} of block with ID ${id}: the block does not accept it as a child.`),
+          : `as the ${placement} of block with ID ${id}: the block does not accept it as a child.`),
     );
   }
 

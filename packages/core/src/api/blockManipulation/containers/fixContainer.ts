@@ -14,7 +14,8 @@ import {
   resolveChildren,
 } from "../../../schema/blocks/children.js";
 import type { ResolvedChildren } from "../../../schema/blocks/children.js";
-import { seedRefillChildren } from "../../nodeConversions/blockToNode.js";
+import type { PartialBlock } from "../../../blocks/defaultBlocks.js";
+import { blockToNode } from "../../nodeConversions/blockToNode.js";
 import { getNodeById } from "../../nodeUtil.js";
 
 // Defined in `children.ts` (it answers a schema-level question); re-exported
@@ -106,8 +107,7 @@ export function fixContainer(tr: Transaction, containerPos: number) {
   if (config.whenEmptied === "unwrap") {
     unwrapContainer(tr, containerPos, node.type, config);
   } else {
-    // `blockConfig` is set whenever `config` is.
-    refillContainer(tr, containerPos, node.type, config, blockConfig!.type);
+    refillContainer(tr, containerPos, node.type, config);
   }
 }
 
@@ -199,7 +199,6 @@ function refillContainer(
   containerPos: number,
   type: NodeType,
   config: ResolvedChildren,
-  blockType: string,
 ) {
   const info = getContainerInfo(tr, containerPos, type);
   if (!info) {
@@ -219,12 +218,15 @@ function refillContainer(
     return;
   }
 
-  const seeds = seedRefillChildren(
-    blockType,
-    tr.doc.type.schema,
-    survivors.length,
-    config.min,
-  );
+  // The refill seeds are the unconsumed tail of the container's `default`
+  // (`default[survivors.length..min-1]`), each converted exactly like an
+  // inserted block. Empty when the container has no `default`; the remainder
+  // is padded with empty fill below.
+  const seeds = (config.default ?? [])
+    .slice(survivors.length, config.min)
+    .map((child) =>
+      blockToNode(child as PartialBlock<any, any, any>, tr.doc.type.schema),
+    );
 
   if (seeds.length === 0) {
     // No `default` to seed from, so empty children are the right fill, and
@@ -250,6 +252,14 @@ function refillContainer(
   tr.replaceWith(childrenStart, childrenEnd, content);
 }
 
+/**
+ * Runs `fixContainer` on each of the given containers, looked up by ID in
+ * `tr`'s current doc. Containers are repaired deepest-first so that an inner
+ * repair (e.g. a column emptying out) is observed by the outer container's
+ * repair (e.g. its columnList unwrapping) in the same pass. Containers that
+ * no longer exist by the time their turn comes are skipped — an earlier
+ * repair may have removed them.
+ */
 export function fixContainersById(
   tr: Transaction,
   containers: { id: string; depth: number }[],
@@ -265,6 +275,13 @@ export function fixContainersById(
     });
 }
 
+/**
+ * Replaces blocks that can't live directly in a `blockGroup` (container-only
+ * blocks like `column`) with their flattened children, so the result can be
+ * inserted anywhere regular blocks go. A replaced block's inline content
+ * survives as a paragraph preceding its children; blocks that are already
+ * insertable pass through unchanged.
+ */
 export function flattenNonInsertableBlocks<
   T extends { type?: string; content?: unknown; children?: T[] },
 >(blocks: T[], pmSchema: Schema): T[] {

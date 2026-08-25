@@ -21,11 +21,11 @@ import {
   type BlockInfo,
   getBlockInfoAt,
 } from "../../../getBlockInfoFromPos.js";
+import { blockToNode } from "../../../nodeConversions/blockToNode.js";
 import {
-  blockToNode,
   inlineContentToNodes,
   tableContentToNodes,
-} from "../../../nodeConversions/blockToNode.js";
+} from "../../../nodeConversions/contentToNodes.js";
 import { nodeToBlock } from "../../../nodeConversions/nodeToBlock.js";
 import { getNodeById } from "../../../nodeUtil.js";
 import { getBlockSchema, getPmSchema } from "../../../pmUtil.js";

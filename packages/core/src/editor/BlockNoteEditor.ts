@@ -1063,8 +1063,8 @@ export class BlockNoteEditor<
    * @param blocksToInsert An array of partial blocks that should be inserted.
    * @param referenceBlock An identifier for an existing block, at which the new blocks should be inserted.
    * @param placement Where the blocks go relative to the `referenceBlock`: as its previous (`"before"`) or next
-   * (`"after"`) sibling, or nested inside it as its first (`"start"`) or last (`"end"`) children. Throws an error if
-   * the `referenceBlock` (or its parent, for `"before"`/`"after"`) doesn't accept the blocks there.
+   * (`"after"`) sibling, or nested inside it as its first (`"first-child"`) or last (`"last-child"`) children. Throws
+   * an error if the `referenceBlock` (or its parent, for `"before"`/`"after"`) doesn't accept the blocks there.
    */
   public insertBlocks(
     blocksToInsert: PartialBlock<BSchema, ISchema, SSchema>[],

@@ -14,7 +14,7 @@ import { UnreachableCaseError } from "../../../../util/typescript.js";
 import {
   inlineContentToNodes,
   tableContentToNodes,
-} from "../../../nodeConversions/blockToNode.js";
+} from "../../../nodeConversions/contentToNodes.js";
 import { nodeToCustomInlineContent } from "../../../nodeConversions/nodeToBlock.js";
 
 /**

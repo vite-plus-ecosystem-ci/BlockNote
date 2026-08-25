@@ -23,6 +23,7 @@ import { splitBlockCommand } from "../../../api/blockManipulation/commands/split
 import { updateBlockCommand } from "../../../api/blockManipulation/commands/updateBlock/updateBlock.js";
 import {
   getBlockInfoAt,
+  getBlockInfoFromNode,
   getBlockInfoFromSelection,
   getLastDescendantBlockInfo,
   getNextBlockInfo,
@@ -227,19 +228,21 @@ export const KeyboardShortcutsExtension = Extension.create<{
               return false;
             }
 
-            const descent = descendToLastInsertionPos(
-              prevBlockInfo.block,
-              state.schema.nodes["blockContainer"],
+            const blockContainerType = state.schema.nodes["blockContainer"];
+            const insertionPos = descendToLastInsertionPos(
+              prevBlockInfo,
+              blockContainerType,
+              { respectSealed: true },
             );
-            const insertionPos = descent.crossedSeal ? null : descent.pos;
             if (insertionPos === null) {
-              // When only a sealed boundary blocked the descent, the
-              // container can't be entered, so it's selected instead, and a
-              // second Backspace deletes it explicitly. A container with
-              // nowhere a `blockContainer` can land falls through as before.
+              // When only a sealed boundary blocked the descent (a seal-blind
+              // walk does find a slot), the container can't be entered, so
+              // it's selected instead, and a second Backspace deletes it
+              // explicitly. A container with nowhere a `blockContainer` can
+              // land falls through as before.
               if (
-                descent.pos !== null &&
-                descent.crossedSeal &&
+                descendToLastInsertionPos(prevBlockInfo, blockContainerType) !==
+                  null &&
                 NodeSelection.isSelectable(prevBlockInfo.block.node)
               ) {
                 if (dispatch) {
@@ -315,22 +318,17 @@ export const KeyboardShortcutsExtension = Extension.create<{
                 ? $containerPos.nodeBefore
                 : null;
 
-            // A gesture move respects seals: a descent that crossed one is
-            // treated as having nowhere to land.
-            const descent = prevSibling
+            // A gesture move respects seals: a descent blocked by one has
+            // nowhere to land.
+            const insertionPos = prevSibling
               ? descendToLastInsertionPos(
-                  {
-                    node: prevSibling,
-                    beforePos: containerBeforePos - prevSibling.nodeSize,
-                  },
+                  getBlockInfoFromNode(
+                    prevSibling,
+                    containerBeforePos - prevSibling.nodeSize,
+                  ),
                   blockContainerType,
+                  { respectSealed: true },
                 )
-              : null;
-
-            const insertionPos = descent
-              ? descent.crossedSeal
-                ? null
-                : descent.pos
               : ascendToInsertablePos(
                   tr.doc,
                   containerBeforePos,
@@ -627,20 +625,18 @@ export const KeyboardShortcutsExtension = Extension.create<{
               return false;
             }
 
-            const firstLeaf = getFirstLeafBlock(
-              nextBlockInfo.block.node,
-              nextBlockInfo.block.beforePos,
-              { respectSealed: true },
-            );
+            const firstLeaf = getFirstLeafBlock(nextBlockInfo, {
+              respectSealed: true,
+            });
             if (!firstLeaf) {
               return false;
             }
 
             if (dispatch) {
               moveBlockOutAndPlaceCaret(tr, {
-                from: firstLeaf.beforePos,
-                to: firstLeaf.beforePos + firstLeaf.node.nodeSize,
-                node: firstLeaf.node,
+                from: firstLeaf.block.beforePos,
+                to: firstLeaf.block.afterPos,
+                node: firstLeaf.block.node,
                 insertAt: blockInfo.block.afterPos,
               });
 
@@ -701,20 +697,19 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
             // The block to pull in: the next node itself, or its first leaf
             // block when it's a container.
-            const target = isContainerNode(nextNode.type)
-              ? getFirstLeafBlock(nextNode, $boundary.pos, {
-                  respectSealed: true,
-                })
-              : { node: nextNode, beforePos: $boundary.pos };
+            const target = getFirstLeafBlock(
+              getBlockInfoFromNode(nextNode, $boundary.pos),
+              { respectSealed: true },
+            );
             if (!target) {
               return false;
             }
 
             if (dispatch) {
               moveBlockOutAndPlaceCaret(tr, {
-                from: target.beforePos,
-                to: target.beforePos + target.node.nodeSize,
-                node: target.node,
+                from: target.block.beforePos,
+                to: target.block.afterPos,
+                node: target.block.node,
                 insertAt: blockInfo.block.afterPos,
               });
             }

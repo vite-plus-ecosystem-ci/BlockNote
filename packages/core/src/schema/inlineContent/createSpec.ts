@@ -7,7 +7,7 @@ import {
   Schema,
   TagParseRule,
 } from "@tiptap/pm/model";
-import { inlineContentToNodes } from "../../api/nodeConversions/blockToNode.js";
+import { inlineContentToNodes } from "../../api/nodeConversions/contentToNodes.js";
 import { nodeToCustomInlineContent } from "../../api/nodeConversions/nodeToBlock.js";
 import type { BlockNoteEditor } from "../../editor/BlockNoteEditor.js";
 import { ignoreNonContentMutations } from "../nodeViewMutations.js";
