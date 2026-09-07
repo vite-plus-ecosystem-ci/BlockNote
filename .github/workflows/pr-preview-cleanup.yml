@@ -28,3 +28,5 @@ jobs:
           preview-branch: gh-pages
           umbrella-dir: pr-preview
           action: remove
+        # Ecosystem smoke test: publishing needs credentials unavailable on the fork.
+        if: ${{ github.repository_owner != 'vite-plus-ecosystem-ci' }}

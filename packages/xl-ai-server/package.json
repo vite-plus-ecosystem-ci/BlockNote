@@ -59,6 +59,7 @@
     "rollup-plugin-webpack-stats": "^0.2.6",
     "typescript": "^7.0.2",
     "undici": "^6.22.0",
+    "vite": "catalog:",
     "vite-node": "^6.0.0",
     "vite-plugin-externalize-deps": "^0.10.0",
     "vite-plus": "catalog:"
