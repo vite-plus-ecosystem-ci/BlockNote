@@ -18,6 +18,7 @@
     "@types/node": "22.13.13",
     "@zip.js/zip.js": "^2.8.8",
     "typescript": "^7.0.2",
+    "vite": "catalog:",
     "vite-plus": "catalog:",
     "xml-formatter": "^3.6.7",
     "@blocknote/xl-typst-compiler": "workspace:^"
