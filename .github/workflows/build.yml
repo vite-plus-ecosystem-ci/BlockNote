@@ -31,10 +31,10 @@ jobs:
       - name: Install Dependencies
         run: vp install
 
-      # `vp run -r build` includes @blocknote/xl-typst-compiler, whose build
-      # task compiles its Rust wasm when missing or stale (rustup is
-      # preinstalled on the runners; the pinned toolchain + wasm32 target
-      # auto-provision from rust/rust-toolchain.toml).
+        # `vp run -r build` includes @blocknote/xl-typst-compiler, whose build
+        # task compiles its Rust wasm when missing or stale (rustup is
+        # preinstalled on the runners; the pinned toolchain + wasm32 target
+        # auto-provision from rust/rust-toolchain.toml).
       - name: Build packages
         run: vp run -r build
 
@@ -56,12 +56,12 @@ jobs:
 
       - name: Soft release
         id: soft-release
-        # xl-typst-compiler is excluded: its wasm makes the package ~25MB,
-        # which pkg.pr.new rejects (413; multipart uploads are whitelisted -
-        # https://github.com/stackblitz-labs/pkg.pr.new/blob/main/.whitelist).
-        # Preview installs of the PDF exporter therefore lack the compiler
-        # until the repo is whitelisted or the wasm ships separately.
-        # TODO disabled only for AI branch--compact
+          # xl-typst-compiler is excluded: its wasm makes the package ~25MB,
+          # which pkg.pr.new rejects (413; multipart uploads are whitelisted -
+          # https://github.com/stackblitz-labs/pkg.pr.new/blob/main/.whitelist).
+          # Preview installs of the PDF exporter therefore lack the compiler
+          # until the repo is whitelisted or the wasm ships separately.
+          # TODO disabled only for AI branch--compact
         run: |
           packages=()
           for dir in ./packages/*/; do
@@ -71,6 +71,7 @@ jobs:
           done
           vp dlx pkg-pr-new publish "${packages[@]}"
 
+        if: ${{ github.repository_owner != 'vite-plus-ecosystem-ci' }}
   build-typst-compiler:
     # The one package the e2e suite consumes through build outputs instead of
     # src/ aliases: @blocknote/xl-typst-compiler (its /pkg and /wasm subpaths
@@ -94,8 +95,8 @@ jobs:
       - name: Install dependencies
         run: vp install
 
-      # Compiles the Rust wasm when missing/stale (rustup is bootstrapped by
-      # the build task itself) plus the TS wrapper's dist/types.
+        # Compiles the Rust wasm when missing/stale (rustup is bootstrapped by
+        # the build task itself) plus the TS wrapper's dist/types.
       - name: Build Typst compiler package
         run: vp run --filter @blocknote/xl-typst-compiler build
 
@@ -150,12 +151,12 @@ jobs:
           name: typst-compiler-build
           path: packages/xl-typst-compiler
 
-      # No preview server: Vitest Browser Mode serves the tests + mounted example
-      # apps itself. `--browser` selects this matrix job's browser and
-      # `--shard=<index>/<total>` splits that browser's test files across two
-      # parallel machines. Each shard records a machine-readable `blob` report
-      # (named per browser+shard so they don't collide); the `merge-reports` job
-      # stitches every browser's shards into one HTML report afterwards.
+        # No preview server: Vitest Browser Mode serves the tests + mounted example
+        # apps itself. `--browser` selects this matrix job's browser and
+        # `--shard=<index>/<total>` splits that browser's test files across two
+        # parallel machines. Each shard records a machine-readable `blob` report
+        # (named per browser+shard so they don't collide); the `merge-reports` job
+        # stitches every browser's shards into one HTML report afterwards.
       - name: Run e2e tests (${{ matrix.browser }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
         run: HOME=/root vp test -c vite.config.browser.ts --run --browser ${{ matrix.browser }} --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }} --reporter=default --reporter=blob --outputFile.blob=blob-report/blob-${{ matrix.browser }}-${{ matrix.shardIndex }}.json
         working-directory: tests
@@ -174,8 +175,8 @@ jobs:
         with:
           name: e2e-attachments-${{ matrix.browser }}-${{ matrix.shardIndex }}
           path: tests/.vitest-attachments/
-          # The attachments dir is a dot-directory; without this the action
-          # silently uploads nothing ("No files were found").
+            # The attachments dir is a dot-directory; without this the action
+            # silently uploads nothing ("No files were found").
           include-hidden-files: true
           retention-days: 7
 
@@ -207,7 +208,7 @@ jobs:
       - name: Install dependencies
         run: vp install
 
-      # Gather every shard's blob into one directory (blob-report-chromium-1, …).
+        # Gather every shard's blob into one directory (blob-report-chromium-1, …).
       - name: Download blob reports
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -215,7 +216,7 @@ jobs:
           pattern: blob-report-*
           merge-multiple: true
 
-      # Re-emit a single HTML report from the merged blobs (no tests are run).
+        # Re-emit a single HTML report from the merged blobs (no tests are run).
       - name: Merge into HTML report
         run: HOME=/root vp test -c vite.config.browser.ts --mergeReports=blob-report --reporter=html
         working-directory: tests
@@ -256,9 +257,9 @@ jobs:
           name: e2e-report
           path: e2e-report
 
-      # Deploys to the `gh-pages` branch under `pr-preview/pr-<N>/` and posts a
-      # sticky comment with the URL. The companion `pr-preview-cleanup` workflow
-      # removes it when the PR closes.
+        # Deploys to the `gh-pages` branch under `pr-preview/pr-<N>/` and posts a
+        # sticky comment with the URL. The companion `pr-preview-cleanup` workflow
+        # removes it when the PR closes.
       - name: Deploy report to PR preview
         uses: rossjrw/pr-preview-action@ffa7509e91a3ec8dfc2e5536c4d5c1acdf7a6de9 # v1
         with:
