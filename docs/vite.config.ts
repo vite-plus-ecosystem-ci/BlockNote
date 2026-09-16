@@ -1,6 +1,7 @@
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
+  test: { clearMocks: false },
   run: {
     tasks: {
       // Validate that all `/examples/...` (and other) links referenced in the

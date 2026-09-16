@@ -30,6 +30,7 @@ export default defineConfig({
   // declaring projects here. Each entry points at the package's
   // `vite.config.ts`, which carries that package's own `test` block.
   test: {
+    clearMocks: false,
     projects: [
       "./packages/ariakit/vite.config.ts",
       "./packages/code-block/vite.config.ts",

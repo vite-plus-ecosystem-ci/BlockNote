@@ -21,6 +21,7 @@ export default defineConfig({
     },
   },
   test: {
+    clearMocks: false,
     environment: "jsdom",
     setupFiles: ["./vitestSetup.ts"],
     // `.browser.test` files need a real browser; the tests package's browser
