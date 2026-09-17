@@ -14,6 +14,9 @@ publicHoistPattern:
   # We have been preferring to use `prosemirror-*` packages instead of `@tiptap/pm` packages
   - "prosemirror-*"
 overrides:
+  fumadocs-mdx: 14.2.11
+  fumadocs-twoslash: 3.1.15
+  fumadocs-typescript: 5.2.1
   "@headlessui/react": "^2.2.4"
   # fumadocs-core still declares @shikijs/rehype ^3 while the rest of the
   # workspace (code-block, docs, fumadocs-twoslash) is on shiki 4.4.3 - two
