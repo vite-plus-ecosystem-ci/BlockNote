@@ -14,6 +14,19 @@ publicHoistPattern:
   # We have been preferring to use `prosemirror-*` packages instead of `@tiptap/pm` packages
   - "prosemirror-*"
 overrides:
+  "msw": "2.11.5"
+  "ai": "6.0.5"
+  "@ai-sdk/anthropic": "3.0.2"
+  "@ai-sdk/openai": "3.0.2"
+  "@ai-sdk/groq": "3.0.2"
+  "@ai-sdk/google": "3.0.2"
+  "@ai-sdk/mistral": "3.0.2"
+  "@ai-sdk/openai-compatible": "2.0.2"
+  "@ai-sdk/provider-utils": "4.0.2"
+  "@ai-sdk/react": "3.0.5"
+  "@ai-sdk/gateway": "3.0.4"
+  "@ai-sdk/provider": "3.0.1"
+  "zod": "4.3.6"
   fumadocs-mdx: 14.2.11
   fumadocs-twoslash: 3.1.15
   fumadocs-typescript: 5.2.1
