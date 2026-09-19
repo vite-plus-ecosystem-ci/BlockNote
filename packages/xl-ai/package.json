@@ -112,6 +112,7 @@
     "rollup-plugin-webpack-stats": "^0.2.6",
     "typescript": "^7.0.2",
     "undici": "^6.22.0",
+    "vite": "catalog:",
     "vite-plugin-externalize-deps": "^0.10.0",
     "vite-plus": "catalog:",
     "yjs": "^13.6.27"

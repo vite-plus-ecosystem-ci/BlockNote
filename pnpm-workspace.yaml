@@ -37,7 +37,6 @@ overrides:
   # Pin both so the whole workspace shares one instance.
   "@types/node": "25.9.5"
   "jsdom": "^29.0.2"
-  "vitest": "4.1.10"
   "@vitest/runner": "4.1.10"
   # @vitest/mocker must stay >=4.1.10: earlier builds only recognize `vitest`
   # as the mocks-API source, so `vi.mock` imported from `vite-plus/test` fails
@@ -46,6 +45,8 @@ overrides:
   "@y/y": "14.0.0-rc.23"
   "@y/prosemirror": "2.0.0-6"
   "lib0": "1.0.0-rc.22"
+  vite@*: "catalog:"
+  vitest@*: "catalog:"
 packageExtensions:
   # `@vitest/ui` is an *optional peer* of vitest, which vite-plus re-exposes as
   # an optional peer of its own. Only `tests` declares it (its browser config
@@ -79,8 +80,11 @@ patchedDependencies:
     katex@0.16.47: patches/katex@0.16.47.patch,
   }
 catalog:
-  vite: ^8.0.0
-  vite-plus: ^0.2.9
+  vite: npm:@voidzero-dev/vite-plus-core@0.0.0-commit.40ce1b34104d16f3c3a2d9fe8eb1b016f5a06b67
+  vite-plus: 0.0.0-commit.40ce1b34104d16f3c3a2d9fe8eb1b016f5a06b67
+  vitest: 5.0.1
+  "@vitest/browser-playwright": 5.0.1
+  "@vitest/ui": 5.0.1
 minimumReleaseAgeExclude:
   - vite-plus
   - lib0
@@ -101,8 +105,17 @@ minimumReleaseAgeExclude:
   - "@myriaddreamin/typst-ts-renderer"
   - "@myriaddreamin/typst-ts-node-compiler"
   - "@myriaddreamin/typst-ts-node-compiler-*"
+  - vitest
+  - "@vitest/*"
 
 # pdfjs-dist pulls @napi-rs/canvas (native binaries) for Node-side
 # rendering, which we never do - pdf.js only runs in the browser suite.
 ignoredOptionalDependencies:
   - "@napi-rs/canvas"
+peerDependencyRules:
+  allowAny:
+    - vite
+    - vitest
+  allowedVersions:
+    vite: "*"
+    vitest: "*"
