@@ -55,6 +55,8 @@ jobs:
           artifactName: relative-ci-artifacts-editor
 
       - name: Soft release
+        # Preview publishing requires an App that the ecosystem fork does not use.
+        if: ${{ github.repository_owner != 'vite-plus-ecosystem-ci' }}
         id: soft-release
         # xl-typst-compiler is excluded: its wasm makes the package ~25MB,
         # which pkg.pr.new rejects (413; multipart uploads are whitelisted -
