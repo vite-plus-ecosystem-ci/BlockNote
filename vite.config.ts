@@ -78,6 +78,15 @@ export default defineConfig({
         },
       ],
       "import-eslint/extensions": ["error", "always", { ignorePackages: true }],
+      // Ecosystem-ci smoke test: these new React Compiler diagnostics expose
+      // existing project patterns and are not prerelease compatibility issues.
+      "react/globals": "off",
+      "react/immutability": "off",
+      "react/preserve-manual-memoization": "off",
+      "react/refs": "off",
+      "react/set-state-in-effect": "off",
+      "react/static-components": "off",
+      "react/use-memo": "off",
       // Native oxlint dependency cycle rule to replace previous ESLint rule.
       // Disabled for now: there is a large set of known, pre-existing
       // dependency cycles in core (hubbed around BlockNoteEditor/schema/api).
