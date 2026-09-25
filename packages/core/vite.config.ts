@@ -10,17 +10,24 @@ export default defineConfig({
     tasks: {
       build: {
         command: "tsc && vp build",
-        input: [
-          { auto: true },
-          { pattern: "!**/*.tsbuildinfo", base: "workspace" },
-        ],
-        // `types/**` must be declared too: a cache replay that restores only
-        // dist/ leaves consumers without declarations (tsc is skipped).
-        output: ["dist/**", "types/**", "!dist/*.tsbuildinfo"],
+        cache: {
+          input: [
+            { auto: true },
+            { pattern: "!**/*.tsbuildinfo", base: "workspace" },
+          ],
+          // `types/**` must be declared too: a cache replay that restores only
+          // dist/ leaves consumers without declarations (tsc is skipped).
+          output: ["dist/**", "types/**", "!dist/*.tsbuildinfo"],
+        },
       },
     },
   },
   test: {
+    // Vitest v4 compatibility: preserve mock call history.
+    // Remove after tests no longer rely on calls from setup or earlier tests.
+    // https://release-v1-0-0-rc-1-viteplus-dev.voidzero-docs.workers.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+    // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
+    clearMocks: false,
     environment: "jsdom",
     setupFiles: ["./vitestSetup.ts"],
     // `.browser.test` files need a real browser; the tests package's browser
