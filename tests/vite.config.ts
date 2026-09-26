@@ -9,21 +9,25 @@ export default defineConfig(
         tasks: {
           build: {
             command: "tsc",
-            input: [
-              { auto: true },
-              { pattern: "!**/*.tsbuildinfo", base: "workspace" },
-            ],
+            cache: {
+              input: [
+                { auto: true },
+                { pattern: "!**/*.tsbuildinfo", base: "workspace" },
+              ],
+            },
           },
           test: {
             command: "vp test --run",
-            input: [
-              { auto: true },
-              { pattern: "!**/.next/**", base: "workspace" },
-              {
-                pattern: "!tests/nextjs-test-app/node_modules/**",
-                base: "workspace",
-              },
-            ],
+            cache: {
+              input: [
+                { auto: true },
+                { pattern: "!**/.next/**", base: "workspace" },
+                {
+                  pattern: "!tests/nextjs-test-app/node_modules/**",
+                  base: "workspace",
+                },
+              ],
+            },
           },
         },
       },
