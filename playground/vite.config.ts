@@ -72,11 +72,13 @@ export default defineConfig(((conf: { command: string }) => ({
     tasks: {
       build: {
         command: "tsc && vp build",
-        input: [
-          { auto: true },
-          { pattern: "!**/*.tsbuildinfo", base: "workspace" },
-        ],
-        output: ["dist/**"],
+        cache: {
+          input: [
+            { auto: true },
+            { pattern: "!**/*.tsbuildinfo", base: "workspace" },
+          ],
+          output: ["dist/**"],
+        },
       },
     },
   },

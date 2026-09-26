@@ -15,16 +15,18 @@ export default defineConfig(
             // wasm without a separate step. Requires a Rust toolchain
             // locally (pinned in rust/rust-toolchain.toml).
             command: "node scripts/ensure-wasm.mjs && tsc && vp build",
-            input: [
-              { auto: true },
-              { pattern: "!**/*.tsbuildinfo", base: "workspace" },
-              { pattern: "rust/**", base: "workspace" },
-              { pattern: "!rust/target/**", base: "workspace" },
-            ],
-            // `types/**` must be declared too: a cache replay that restores
-            // only dist/ leaves consumers without declarations. pkg/** is
-            // produced by ensure-wasm and replayed with the rest.
-            output: ["dist/**", "types/**", "pkg/**", "!dist/*.tsbuildinfo"],
+            cache: {
+              input: [
+                { auto: true },
+                { pattern: "!**/*.tsbuildinfo", base: "workspace" },
+                { pattern: "rust/**", base: "workspace" },
+                { pattern: "!rust/target/**", base: "workspace" },
+              ],
+              // `types/**` must be declared too: a cache replay that restores
+              // only dist/ leaves consumers without declarations. pkg/** is
+              // produced by ensure-wasm and replayed with the rest.
+              output: ["dist/**", "types/**", "pkg/**", "!dist/*.tsbuildinfo"],
+            },
           },
         },
       },
