@@ -85,6 +85,13 @@ catalog:
   vite: ^8.0.0
   vite-plus: ^0.3.3
 minimumReleaseAgeExclude:
+  # ecosystem-ci smoke test: preview builds and freshly pinned toolchain packages
+  - "@oxc-project/*"
+  - tinybench
+  - yuku-core
+  - yuku-parser
+  - "@yuku-core/*"
+  - "@yuku-toolchain/*"
   - vite-plus
   - lib0
   - "@y/y"
