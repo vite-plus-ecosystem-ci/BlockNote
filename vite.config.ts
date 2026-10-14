@@ -16,10 +16,12 @@ export default defineConfig({
     tasks: {
       "copy-package-readmes": {
         command: "node scripts/copy-package-readmes.mjs",
-        // These copies are outputs, not inputs: automatic tracking of the
-        // destination checks would make a fresh checkout miss every time.
-        input: ["README.md", "scripts/copy-package-readmes.mjs"],
-        output: ["packages/core/README.md", "packages/react/README.md"],
+        cache: {
+          // These copies are outputs, not inputs: automatic tracking of the
+          // destination checks would make a fresh checkout miss every time.
+          input: ["README.md", "scripts/copy-package-readmes.mjs"],
+          output: ["packages/core/README.md", "packages/react/README.md"],
+        },
       },
       // The release script is interactive and produces only side-effects
       // (git commit/tag/push, npm publish). It reads a stable file set
@@ -37,6 +39,11 @@ export default defineConfig({
   // declaring projects here. Each entry points at the package's
   // `vite.config.ts`, which carries that package's own `test` block.
   test: {
+    // Vitest v4 compatibility: preserve mock call history.
+    // Remove after tests no longer rely on calls from setup or earlier tests.
+    // https://release-v1-2-0-viteplus-dev.voidzero-docs.workers.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+    // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
+    clearMocks: false,
     projects: [
       "./packages/ariakit/vite.config.ts",
       "./packages/code-block/vite.config.ts",

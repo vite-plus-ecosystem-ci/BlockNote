@@ -124,7 +124,8 @@
     "vite-plus": "catalog:",
     "y-prosemirror": "^1.3.7",
     "y-protocols": "^1.0.6",
-    "yjs": "^13.6.27"
+    "yjs": "^13.6.27",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "@y/prosemirror": "^2.0.0-6",
